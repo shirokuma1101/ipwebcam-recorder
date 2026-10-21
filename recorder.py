@@ -29,16 +29,18 @@ def command(output):
     seconds = positive("SEGMENT_SECONDS", 3600)
     timeout = str(int(positive("HTTP_TIMEOUT_SECONDS", 30) * 1_000_000))
     args = ["ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "warning", "-n"]
-    for url in (video, audio):
-        args += ["-thread_queue_size", "512", "-rw_timeout", timeout,
-                 "-use_wallclock_as_timestamps", "1", "-i", url]
+    args += ["-thread_queue_size", "512", "-rw_timeout", timeout,
+             "-use_wallclock_as_timestamps", "1", "-i", video]
+    # WAV/PCM timing comes from sample counts. HTTP delivery can arrive in bursts;
+    # assigning receive times to audio packets turns jitter into gaps/overlaps.
+    args += ["-thread_queue_size", "512", "-rw_timeout", timeout, "-i", audio]
     args += ["-map", "0:v:0", "-map", "1:a:0",
              "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
              "-pix_fmt", "yuv420p", "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
              # Clock boundaries can occur anywhere relative to input timestamps.
              # Frequent keyframes limit the delay before a boundary can be cut.
              "-tune", "zerolatency", "-force_key_frames", "expr:gte(t,n_forced*1)",
-             "-c:a", "aac", "-b:a", "128k", "-af", "aresample=async=1:first_pts=0",
+             "-c:a", "aac", "-b:a", "128k", "-af", "asetpts=N/SR/TB",
              "-f", "segment", "-segment_time", str(seconds),
              "-segment_atclocktime", "1",
              "-segment_format", "matroska", "-reset_timestamps", "1",

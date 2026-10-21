@@ -29,6 +29,16 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(args[args.index("-segment_atclocktime") + 1], "1")
 
     @patch.dict(os.environ, {"VIDEO_URL": "http://camera/video",
+                             "AUDIO_URL": "http://camera/audio.wav"}, clear=True)
+    def test_audio_uses_sample_clock_instead_of_http_arrival_time(self):
+        args = recorder.command(Path("/recordings"))
+        video_end = args.index("http://camera/video")
+        audio_end = args.index("http://camera/audio.wav")
+        self.assertIn("-use_wallclock_as_timestamps", args[:video_end])
+        self.assertNotIn("-use_wallclock_as_timestamps", args[video_end + 1:audio_end])
+        self.assertEqual(args[args.index("-af") + 1], "asetpts=N/SR/TB")
+
+    @patch.dict(os.environ, {"VIDEO_URL": "http://camera/video",
                              "AUDIO_URL": "http://camera/audio.wav",
                              "SEGMENT_SECONDS": "0"}, clear=True)
     def test_reject_invalid_segment_length(self):

@@ -35,9 +35,12 @@ def command(output):
     args += ["-map", "0:v:0", "-map", "1:a:0",
              "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
              "-pix_fmt", "yuv420p", "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
-             "-force_key_frames", f"expr:gte(t,n_forced*{seconds})",
+             # Clock boundaries can occur anywhere relative to input timestamps.
+             # Frequent keyframes limit the delay before a boundary can be cut.
+             "-tune", "zerolatency", "-force_key_frames", "expr:gte(t,n_forced*1)",
              "-c:a", "aac", "-b:a", "128k", "-af", "aresample=async=1:first_pts=0",
              "-f", "segment", "-segment_time", str(seconds),
+             "-segment_atclocktime", "1",
              "-segment_format", "matroska", "-reset_timestamps", "1",
              "-strftime", "1",
              str(output / (prefix + "%Y-%m-%d_%H-%M-%S_" + uuid.uuid4().hex[:12] + ".mkv"))]

@@ -13,10 +13,20 @@ class CommandTests(unittest.TestCase):
         args = recorder.command(Path("/recordings"))
         self.assertEqual(args.count("-i"), 2)
         self.assertEqual(args[args.index("-segment_time") + 1], "3600")
+        self.assertEqual(args[args.index("-segment_atclocktime") + 1], "1")
+        self.assertEqual(args[args.index("-force_key_frames") + 1], "expr:gte(t,n_forced*1)")
         self.assertIn("0:v:0", args)
         self.assertIn("1:a:0", args)
         self.assertIn("matroska", args)
         self.assertNotEqual(args[-1], recorder.command(Path("/recordings"))[-1])
+
+    @patch.dict(os.environ, {"VIDEO_URL": "http://camera/video",
+                             "AUDIO_URL": "http://camera/audio.wav",
+                             "SEGMENT_SECONDS": "60"}, clear=True)
+    def test_clock_aligned_custom_interval(self):
+        args = recorder.command(Path("/recordings"))
+        self.assertEqual(args[args.index("-segment_time") + 1], "60")
+        self.assertEqual(args[args.index("-segment_atclocktime") + 1], "1")
 
     @patch.dict(os.environ, {"VIDEO_URL": "http://camera/video",
                              "AUDIO_URL": "http://camera/audio.wav",

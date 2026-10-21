@@ -1,6 +1,7 @@
 """Supervise FFmpeg recording from Android IP Webcam."""
 import logging
 import os
+import re
 from pathlib import Path
 import shutil
 import signal
@@ -21,6 +22,10 @@ def positive(name, default, kind=int):
 def command(output):
     video = os.environ["VIDEO_URL"]
     audio = os.environ["AUDIO_URL"]
+    prefix = os.getenv("FILENAME_PREFIX", "")
+    if prefix and not re.fullmatch(r"[A-Za-z0-9_-]+", prefix):
+        raise ValueError("FILENAME_PREFIX must contain only ASCII letters, digits, '_' or '-'")
+    prefix = prefix + "_" if prefix else ""
     seconds = positive("SEGMENT_SECONDS", 3600)
     timeout = str(int(positive("HTTP_TIMEOUT_SECONDS", 30) * 1_000_000))
     args = ["ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "warning", "-n"]
@@ -35,7 +40,7 @@ def command(output):
              "-f", "segment", "-segment_time", str(seconds),
              "-segment_format", "matroska", "-reset_timestamps", "1",
              "-strftime", "1",
-             str(output / ("%Y-%m-%d_%H-%M-%S_" + uuid.uuid4().hex[:12] + ".mkv"))]
+             str(output / (prefix + "%Y-%m-%d_%H-%M-%S_" + uuid.uuid4().hex[:12] + ".mkv"))]
     return args
 
 

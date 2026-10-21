@@ -1,0 +1,38 @@
+services:
+  recorder:
+    build: .
+    restart: unless-stopped
+    init: true
+    user: "${PUID:-1000}:${PGID:-1000}"
+    stop_grace_period: 30s
+    environment:
+      TZ: ${TZ:-Asia/Tokyo}
+      VIDEO_URL: ${VIDEO_URL:?Set VIDEO_URL in .env}
+      AUDIO_URL: ${AUDIO_URL:?Set AUDIO_URL in .env}
+      OUTPUT_DIR: /recordings
+      SEGMENT_SECONDS: ${SEGMENT_SECONDS:-3600}
+      HTTP_TIMEOUT_SECONDS: ${HTTP_TIMEOUT_SECONDS:-30}
+      RETRY_SECONDS: ${RETRY_SECONDS:-10}
+      MIN_FREE_MB: ${MIN_FREE_MB:-1024}
+    volumes:
+      - recordings:/recordings
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  recordings:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: "addr=${NFS_SERVER:?Set NFS_SERVER in .env},nfsvers=4,rw,hard,timeo=600,retrans=2"
+      device: ":${NFS_EXPORT:?Set NFS_EXPORT in .env}"

@@ -8,6 +8,9 @@ import signal
 import subprocess
 import threading
 import uuid
+from urllib.parse import parse_qsl, urlencode, unquote, urlsplit, urlunsplit
+from urllib.request import (HTTPBasicAuthHandler, HTTPDigestAuthHandler,
+                            HTTPPasswordMgrWithDefaultRealm, Request, build_opener)
 
 LOG = logging.getLogger("recorder")
 
@@ -17,6 +20,45 @@ def positive(name, default, kind=int):
     if value <= 0:
         raise ValueError(f"{name} must be positive")
     return value
+
+
+def zoom_config():
+    value = os.getenv("ZOOM_LEVEL", "").strip()
+    if not value:
+        return None
+    if not re.fullmatch(r"[0-9]+", value):
+        raise ValueError("ZOOM_LEVEL must be a non-negative integer or empty")
+    source = urlsplit(os.getenv("ZOOM_URL") or os.environ["VIDEO_URL"])
+    if source.scheme not in ("http", "https") or not source.hostname:
+        raise ValueError("Zoom control requires an HTTP(S) URL")
+    # An explicit URL supports reverse proxies with a path prefix.
+    path = source.path if os.getenv("ZOOM_URL") else "/ptz"
+    query = [(key, val) for key, val in parse_qsl(source.query, keep_blank_values=True)
+             if key != "zoom"] if os.getenv("ZOOM_URL") else []
+    query.append(("zoom", str(int(value))))
+    url = urlunsplit((source.scheme, source.netloc.rsplit("@", 1)[-1], path,
+                      urlencode(query), ""))
+    return url, source.username, source.password
+
+
+def set_zoom():
+    config = zoom_config()
+    if config is None:
+        return
+    url, username, password = config
+    credentials = HTTPPasswordMgrWithDefaultRealm()
+    if username is not None:
+        credentials.add_password(None, url, unquote(username), unquote(password or ""))
+    opener = build_opener(HTTPBasicAuthHandler(credentials), HTTPDigestAuthHandler(credentials))
+    try:
+        with opener.open(Request(url, data=b"", method="POST"),
+                         timeout=positive("HTTP_TIMEOUT_SECONDS", 30)) as response:
+            if not 200 <= response.status < 300:
+                raise OSError("Unexpected zoom response")
+    except OSError as exc:
+        LOG.error("Zoom setup failed (%s); retrying before recording", type(exc).__name__)
+        raise
+    LOG.info("Zoom configured to %s", os.environ["ZOOM_LEVEL"].strip())
 
 
 def command(output):
@@ -59,6 +101,7 @@ def main():
         signal.signal(sig, lambda *_: stop.set())
     # Validate before entering the retry loop; never log URLs containing credentials.
     command(output)
+    zoom_config()
     if shutil.which("ffmpeg") is None:
         raise RuntimeError("ffmpeg is not installed")
     while not stop.is_set():
@@ -70,6 +113,9 @@ def main():
             probe = output / (".write-probe-" + uuid.uuid4().hex)
             probe.write_bytes(b"")
             probe.unlink()
+            set_zoom()
+            if stop.is_set():
+                break
             LOG.info("Starting recording to %s", output)
             # FFmpeg errors can contain credential-bearing URLs; suppress its raw stderr.
             process = subprocess.Popen(command(output), stdin=subprocess.DEVNULL,

@@ -11,6 +11,7 @@ services:
       AUDIO_URL: ${AUDIO_URL:?Set AUDIO_URL in .env}
       OUTPUT_DIR: /recordings
       FILENAME_PREFIX: ${FILENAME_PREFIX:-}
+      VIDEO_CRF: ${VIDEO_CRF:-28}
       ZOOM_LEVEL: ${ZOOM_LEVEL:-}
       ZOOM_URL: ${ZOOM_URL:-}
       SEGMENT_SECONDS: ${SEGMENT_SECONDS:-3600}

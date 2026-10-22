@@ -18,7 +18,21 @@ class CommandTests(unittest.TestCase):
         self.assertIn("0:v:0", args)
         self.assertIn("1:a:0", args)
         self.assertIn("matroska", args)
+        self.assertEqual(args[args.index("-crf") + 1], "28")
+        self.assertEqual(args[args.index("-preset") + 1], "veryfast")
         self.assertNotEqual(args[-1], recorder.command(Path("/recordings"))[-1])
+
+    @patch.dict(os.environ, {"VIDEO_URL": "http://camera/video",
+                             "AUDIO_URL": "http://camera/audio.wav"}, clear=True)
+    def test_configurable_compression(self):
+        for value in ("0", "23", "28", "30", "51"):
+            with self.subTest(value=value), patch.dict(os.environ, {"VIDEO_CRF": value}):
+                args = recorder.command(Path("/recordings"))
+                self.assertEqual(args[args.index("-crf") + 1], value)
+        for value in ("-1", "52", "nan", "28.5", ""):
+            with self.subTest(value=value), patch.dict(os.environ, {"VIDEO_CRF": value}):
+                with self.assertRaises(ValueError):
+                    recorder.command(Path("/recordings"))
 
     @patch.dict(os.environ, {"VIDEO_URL": "http://camera/video",
                              "AUDIO_URL": "http://camera/audio.wav",

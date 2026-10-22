@@ -69,6 +69,9 @@ def command(output):
         raise ValueError("FILENAME_PREFIX must contain only ASCII letters, digits, '_' or '-'")
     prefix = prefix + "_" if prefix else ""
     seconds = positive("SEGMENT_SECONDS", 3600)
+    crf = int(os.getenv("VIDEO_CRF", "28"))
+    if not 0 <= crf <= 51:
+        raise ValueError("VIDEO_CRF must be an integer between 0 and 51")
     timeout = str(int(positive("HTTP_TIMEOUT_SECONDS", 30) * 1_000_000))
     args = ["ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "warning", "-n"]
     args += ["-thread_queue_size", "512", "-rw_timeout", timeout,
@@ -77,7 +80,7 @@ def command(output):
     # assigning receive times to audio packets turns jitter into gaps/overlaps.
     args += ["-thread_queue_size", "512", "-rw_timeout", timeout, "-i", audio]
     args += ["-map", "0:v:0", "-map", "1:a:0",
-             "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+             "-c:v", "libx264", "-preset", "veryfast", "-crf", str(crf),
              "-pix_fmt", "yuv420p", "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
              # Clock boundaries can occur anywhere relative to input timestamps.
              # Frequent keyframes limit the delay before a boundary can be cut.
